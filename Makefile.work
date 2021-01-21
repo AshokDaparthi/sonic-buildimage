@@ -163,7 +163,7 @@ ifeq ($(DOCKER_DATA_ROOT_FOR_MULTIARCH),)
 endif
     # Multiarch docker cannot start dockerd service due to iptables cannot run over different arch kernel
     SONIC_SERVICE_DOCKERD_FOR_MULTIARCH=y
-    SONIC_NATIVE_DOCKERD_FOR_MUTLIARCH := dockerd  --experimental=true --storage-driver=vfs \
+    SONIC_NATIVE_DOCKERD_FOR_MUTLIARCH := dockerd  --experimental=true --storage-driver=overlay2 --config-file=/etc/docker/daemon-march.json \
         --data-root=$(DOCKER_DATA_ROOT_FOR_MULTIARCH) --exec-root=/var/run/march/docker/ \
         -H unix:///var/run/march/docker.sock -p /var/run/march/docker.pid
     DOCKER_RUN += -v /var/run/march/docker.sock:/var/run/docker.sock
@@ -173,19 +173,24 @@ endif
     SONIC_USERFACL_DOCKERD_FOR_MUTLIARCH := setfacl -m user:$(USER):rw /var/run/march/docker.sock
 
     #Override Native config to prevent docker service
-    SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD=y
+    SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD = y
+    export SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD
+    $(info "exporting SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD")
 
     DOCKER_MULTIARCH_CHECK := docker inspect --type image multiarch/qemu-user-static:register &> /dev/null || (echo "multiarch docker not found ..."; docker run --rm --privileged multiarch/qemu-user-static:register --reset --credential yes)
 
-    DOCKER_SERVICE_SAFE_KILLER :=  (MARCH_PID=`ps -eo pid,cmd | grep "[0-9] dockerd.*march" | awk '{print $$1}'`; echo "Killing march docker $$MARCH_PID"; [ -z "$$MARCH_PID" ] || sudo kill -9 "$$MARCH_PID";)
-    DOCKER_SERVICE_MULTIARCH_CHECK := ($(DOCKER_SERVICE_SAFE_KILLER); sudo rm -fr /var/run/march/; (echo "Starting docker march service..."; sudo $(SONIC_NATIVE_DOCKERD_FOR_MUTLIARCH) &) &>/dev/null ; sleep 2; sudo $(SONIC_USERFACL_DOCKERD_FOR_MUTLIARCH);)
+    DOCKER_SERVICE_SAFE_KILLER :=  (MARCH_PID=`ps -eo pid,cmd | grep "[0-9] dockerd.*march" | awk '{print $$1}'`; echo "Killing march docker $$MARCH_PID"; [ -z "$$MARCH_PID" ] || sudo kill -9 $$MARCH_PID;)
+    #DOCKER_SERVICE_MULTIARCH_CHECK := ($(DOCKER_SERVICE_SAFE_KILLER); sudo rm -fr /var/run/march/; (echo "Starting docker march service..."; sudo $(SONIC_NATIVE_DOCKERD_FOR_MUTLIARCH) &) &>/dev/null ; sleep 2; sudo $(SONIC_USERFACL_DOCKERD_FOR_MUTLIARCH);)
+    DOCKER_SERVICE_MULTIARCH_CHECK := ($(DOCKER_SERVICE_SAFE_KILLER); sudo rm -fr /var/run/march/; (echo "Starting docker march service..."; sudo $(SONIC_NATIVE_DOCKERD_FOR_MUTLIARCH) &) &>/tmp/march.log ; sleep 2; sudo $(SONIC_USERFACL_DOCKERD_FOR_MUTLIARCH);)
+
 
     # Docker service to load the compiled dockers-*.gz
     # docker 19.0 version above has path/length restriction, so replaced it with soft link in /tmp/
     # Also dockerd does mkdir on the provided softlink, so used two level path "d/d"
     D_ROOT=/tmp/d/d
+    export D_ROOT
     SONIC_NATIVE_DOCKERD_FOR_DOCKERFS := rm -fr $(PWD)/dockerfs; mkdir -p $(PWD)/dockerfs; sudo rm -fr /tmp/d; mkdir -p /tmp/d; ln -s -f $(PWD)/dockerfs $(D_ROOT); \
-					sudo dockerd --storage-driver=overlay2 --iptables=false \
+					sudo dockerd --storage-driver=overlay2 --iptables=false --config-file=/etc/docker/daemon-march.json \
 					--data-root $(D_ROOT)/var/lib/docker/ --exec-root=$(D_ROOT)/var/run/docker/ \
 					-H unix://$(D_ROOT)/var/run/docker.sock -p $(D_ROOT)/var/run/docker.pid &
     SONIC_USERFACL_DOCKERD_FOR_DOCKERFS := setfacl -m user:$(USER):rw $(D_ROOT)/var/run/docker.sock
@@ -193,7 +198,7 @@ endif
 
 endif
 
-DOCKER_BASE_BUILD = docker build --no-cache \
+DOCKER_BASE_BUILD = docker build \
 		    -t $(SLAVE_BASE_IMAGE):$(SLAVE_BASE_TAG) \
 		    --build-arg http_proxy=$(http_proxy) \
 		    --build-arg https_proxy=$(https_proxy) \
@@ -202,7 +207,7 @@ DOCKER_BASE_BUILD = docker build --no-cache \
 DOCKER_BASE_PULL = docker pull \
 			$(REGISTRY_SERVER):$(REGISTRY_PORT)/$(SLAVE_BASE_IMAGE):$(SLAVE_BASE_TAG)
 
-DOCKER_BUILD = docker build --no-cache \
+DOCKER_BUILD = docker build \
 	       --build-arg user=$(USER) \
 	       --build-arg uid=$(shell id -u) \
 	       --build-arg guid=$(shell id -g) \

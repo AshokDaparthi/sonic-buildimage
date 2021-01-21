@@ -262,12 +262,13 @@ RUN apt-get update && apt-get install -y \
 # For initramfs
         shellcheck \
         bash-completion \
-{%- if CONFIGURED_ARCH == "amd64" %}
 # For sonic vs image build
         dosfstools \
-        qemu-kvm \
+#        qemu-kvm \
+        qemu-system-arm \
+        qemu-efi-aarch64 \
+        qemu-utils \
         libvirt-clients \
-{%- endif %}
 # For ntp
         autogen \
         libopts25-dev \
@@ -303,6 +304,7 @@ RUN apt-get update && apt-get install -y \
         xsltproc \
         python-lxml \
         libexpat1-dev \
+        libxml2-dev libxslt-dev \ 
 # For WPA supplication
         qtbase5-dev          \
         aspell-en            \

@@ -644,6 +644,8 @@ $(SONIC_INSTALL_WHEELS) : $(PYTHON_WHEELS_PATH)/%-install : .platform $$(addsuff
 docker-start :
 	@sudo sed -i '/http_proxy/d' /etc/default/docker
 	@sudo bash -c "echo \"export http_proxy=$$http_proxy\" >> /etc/default/docker"
+	@echo SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD=$(SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD)
+
 	@test x$(SONIC_CONFIG_USE_NATIVE_DOCKERD_FOR_BUILD) != x"y" && sudo service docker status &> /dev/null || ( sudo service docker start &> /dev/null && ./scripts/wait_for_docker.sh 60 )
 
 # targets for building simple docker images that do not depend on any debian packages
