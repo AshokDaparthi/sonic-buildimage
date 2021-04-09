@@ -138,4 +138,15 @@ module sonic-types {
             enum XGMII;
         }
     }
+
+    container operation {
+        leaf operation {
+            type enumeration {
+                enum CREATE;
+                enum UPDATE;
+                enum DELETE;
+            }
+        }
+        description "Sonic data operation types required during validation";
+    }
 }
